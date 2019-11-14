@@ -22,56 +22,27 @@ def output_file(raw_list):
             output.append(item)
     return output
 
-#function to compute the number of months per measure. Input are a list of datesor dict if the frequency for each measure is different
-def count_months(list_with_sums):
-    dates = set()
-    measure_dict = {}
-    for row in list_with_sums:
-        if row[1] not in dates:
-            dates.add(row[1])
-        if row[2] in measure_dict:
-            measure_dict[row[2]] += 1
-        else:
-            measure_dict[row[2]] = 1
-    # Remove the column name Measure
-    del(measure_dict['Measure'])
-
-    # test if each measure has same frequency for each month
-    next_value = next(iter(measure_dict.values()))
-    all_equal_frequency = all(value == next_value for value in measure_dict.values())
-
-    return len(dates) if all_equal_frequency else measure_dict
 
 #function to find the average crosssing per month per measure
-def calculate_aver_crossing(num_of_months, list_with_sums):
+def calculate_aver_crossing(list_with_sums):
     list_avg = []
-    sumSoFar,count= 0, 0
-    for i in range(len(list_with_sums) - 1, -1, -1):
+    dict_border_measure={}
+    pre_sum,count= 0, 0
+    for i in range(len(list_with_sums) - 1, 0, -1):
         each_row = list_with_sums[i]
         # check if each measure has different frequency
-        if isinstance(num_of_months, dict):
-            for key, value in num_of_months.items():
-                if each_row[2] == key:
-                    if i % value == 0 or i==len(list_with_sums)-1:
-                        sumSoFar, count = 0, 0
-                        each_row = each_row + [0]
-                    else:
-                        previous_row = list_with_sums[i + 1]
-                        sumSoFar += previous_row[3]
-                        count += 1
-                        each_row = each_row + [rounding(sumSoFar / count)]
-                    list_avg.append(each_row)
-        #the case with same frequency for each month            
+        if each_row[0] in dict_border_measure and each_row[2] in dict_border_measure[each_row[0]]:
+            pre_sum=dict_border_measure[each_row[0]][each_row[2]]
+            dict_border_measure[each_row[0]][each_row[2]] = pre_sum + each_row[3]
+            count+=1
+            each_row = each_row + [rounding(pre_sum / count)]
         else:
-            if i % (num_of_months - 1) == 0:
-                sumSoFar, count = 0, 0
-                each_row = each_row + [0]
-            else:
-                previous_row = list_with_sums[i + 1]
-                sumSoFar += previous_row[3]
-                count += 1
-                each_row = each_row + [my_rounding(sumSoFar / count)]
-            list_avg.append(each_row)
+            pre_sum, count = 0, 0
+            each_row = each_row + [0]
+            dict_border_measure[each_row[0]]={}
+            dict_border_measure[each_row[0]][each_row[2]]={}
+            dict_border_measure[each_row[0]][each_row[2]]=each_row[3]
+        list_avg.append(each_row)     
     return list_avg
 
 def parse_args():
@@ -101,24 +72,20 @@ def main():
     with open(args.input, mode='r') as csv_file:
 
         csv_reader = csv.reader(csv_file, delimiter=',')
-
+        
         # Sort list by Border, Date, and Measure in descending order
-        sorted_list = sorted(csv_reader, key=itemgetter(3, 5))
-
+        sorted_list = sorted(csv_reader, key=itemgetter(3,5,4),reverse=True)
 
         # find sum of each measure per month and store it as a new list, for example, add the sum for each row where the border, date and measure are the same
         list_with_sums = [key + [sum([int(r[6]) for r in rows if r[6].isdigit() and int(r[6]) != 0])] for key, rows in groupby(sorted_list, key=lambda x: x[3:6])]
 
-        # compute the number of number for each measure, if the frequence is the same, an int is returned.Otherwise, a dictionary is returned.
-        num_of_months = count_months(list_with_sums)
 
         # calculate the average crossing per month and per measure
-        list_avg = calculate_aver_crossing(num_of_months, list_with_sums)
+        list_avg = calculate_aver_crossing(list_with_sums)
 
         # Sort the list by Date, Value, Measure, Border in descending order
         sorted_list_border_measure_value_average = sorted(list_avg, key=itemgetter(3, 2, 0), reverse=True)
-        Last_sorted_list = sorted(sorted_list_border_measure_value_average,
-                                   key=lambda x: datetime.strptime(x[1], '%d/%m/%Y %H:%M:%S %p'), reverse=True)
+        Last_sorted_list = sorted(sorted_list_border_measure_value_average[:-1], key=lambda x: datetime.strptime(x[1], '%m/%d/%Y %H:%M:%S %p'), reverse=True)
 
     # Write to an output csv file
     with open(args.output, mode='w') as csv_outfile:
@@ -137,7 +104,7 @@ if __name__ == '__main__':
     main()
 
         
-       
 
     
+
 
